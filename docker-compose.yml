@@ -1,0 +1,9 @@
+services:
+  ccurrency_bot:
+    container_name: currency-bot
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+    restart: always
