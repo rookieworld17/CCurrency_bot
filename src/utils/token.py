@@ -37,7 +37,8 @@ def get_token_info(symbol):
         f"*📊 {escape_md(name)} \\(${escape_md(symbol.upper())}\\)*\n\n"
         f"💰 *Цена:* `${escape_md(price)}`\n"
         f"🏦 *Market Cap:* `${escape_md(market_cap)}`\n"
-        f"📈 *FDV:* `${escape_md(fdv)}`"
+        f"📈 *FDV:* `${escape_md(fdv)}`\n\n"
+        "*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel](https://t\\.me/devrookies)*"
     )
 
 def convert_currency(amount: float, symbol: str, intent: str = "forward") -> str:
@@ -65,14 +66,16 @@ def convert_currency(amount: float, symbol: str, intent: str = "forward") -> str
             result_usdc = float(amount) * price_usdc
             return (
                 f"`{amount}` *${escape_md(symbol)}* *≈* `{escape_md(format_price(result_usdt))}` *$USDT*\n"
-                f"`{amount}` *${escape_md(symbol)}* *≈* `{escape_md(format_price(result_usdc))}` *$USDC*"
+                f"`{amount}` *${escape_md(symbol)}* *≈* `{escape_md(format_price(result_usdc))}` *$USDC*\n\n"
+                "*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel](https://t\\.me/devrookies)*"
             )
         elif intent == "reverse":
             result_token_usdt = float(amount) / price_usdt
             result_token_usdc = float(amount) / price_usdc
             return (
                 f"`{amount}` *$USDT* *≈* `{escape_md(format_price(result_token_usdt))}` *${escape_md(symbol)}*\n"
-                f"`{amount}` *$USDC* *≈* `{escape_md(format_price(result_token_usdc))}` *${escape_md(symbol)}*"
+                f"`{amount}` *$USDC* *≈* `{escape_md(format_price(result_token_usdc))}` *${escape_md(symbol)}*\n\n"
+                "*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel](https://t\\.me/devrookies)*"
             )
         else:
             return "❌ Указано неверное направление конвертации."
