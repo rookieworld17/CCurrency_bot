@@ -3,15 +3,45 @@ from telebot import types
 from utils.services.welcome import get_welcome_message
 from utils.services.formatting import parce_input, escape_md
 from utils.token import convert_currency, get_token_info
-import os, telebot, re
+from utils.services.database import init_db, add_user
+from utils.services.users import check_subscribe, get_subscription_keyboard
+from utils.services import users
+import os, telebot, time
 
 load_dotenv()
+init_db()
 
 telegram_api = os.getenv('TELEGRAM_BOT_TOKEN')
 bot = telebot.TeleBot(telegram_api)
 
+users.register_callback_handlers(bot)
+
+last_action_time = {}
+ANTI_SPAM_DELAY = 5
+
+def is_spam(user_id):
+    now = time.time()
+    if user_id in last_action_time and now - last_action_time[user_id] < ANTI_SPAM_DELAY:
+        return True
+    last_action_time[user_id] = now
+    return False
+
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
+    if is_spam(message.from_user.id):
+        return
+
+    if not check_subscribe(bot, message.from_user.id):
+        bot.reply_to(
+            message,
+            "*Для того чтобы пользоваться функционалом бота, необходимо подписаться на канал* 😉",
+            reply_markup=get_subscription_keyboard(),
+            parse_mode="MarkdownV2",
+        )
+        return
+
+    add_user(message.from_user.id)
+
     bot.send_message(
         message.chat.id,
         get_welcome_message(),
@@ -23,6 +53,20 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
+    if is_spam(message.from_user.id):
+        return
+
+    if not check_subscribe(bot, message.from_user.id):
+        bot.reply_to(
+            message,
+             "*Для того чтобы пользоваться функционалом бота, необходимо подписаться на канал* 😉",
+            reply_markup=get_subscription_keyboard(),
+            parse_mode="MarkdownV2",
+        )
+        return
+
+    add_user(message.from_user.id)
+
     text = message.text.strip()
     amount, symbol, intent = parce_input(text)
 
