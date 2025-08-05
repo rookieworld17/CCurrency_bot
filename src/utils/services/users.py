@@ -1,5 +1,5 @@
 from telebot import types
-from utils.services.welcome import get_welcome_message
+from src.utils.services.welcome import get_welcome_message
 import os
 
 channel_username = os.getenv('CHANNEL_USERNAME')
