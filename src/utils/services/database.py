@@ -1,5 +1,5 @@
 import sqlite3
-from src.config import DB_PATH
+from utils.cfg.config import DB_PATH
 import os
 
 def init_db():
