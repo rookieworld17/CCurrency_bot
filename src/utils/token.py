@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from utils.services.formatting import format_price, escape_md
+from utils.translations import STRINGS
 import os, requests
 
 load_dotenv()
@@ -7,26 +8,24 @@ load_dotenv()
 url = os.getenv('COINMARKETCAP_URL_API')
 headers = {'X-CMC_PRO_API_KEY': os.getenv('COINMARKETCAP_USER_API')}
 
-def get_token_info(symbol):
-    params = {
-        'symbol': symbol.upper(),
-        'convert': 'USD'
-    }
+def get_token_info(symbol, lang='EN'):
+    s = STRINGS[lang]
+    params = {'symbol': symbol.upper(), 'convert': 'USD'}
 
     response = requests.get(url, headers=headers, params=params)
     data = response.json()
 
     if "status" in data and data["status"]["error_code"] != 0:
-        return f"❌ Ошибка CMC: {data['status']['error_message']}"
+        return f"{s['cmc_error']}{data['status']['error_message']}"
 
     if symbol.upper() not in data['data']:
-        return f"⚠️ Токен {symbol} не найден."
+        return s['token_not_found_short']
 
     token_data = data['data'][symbol.upper()]
     quote = token_data.get('quote', {}).get('USD')
 
     if not quote:
-        return f"⚠️ Нет цены в USDT для {symbol}."
+        return f"{s['no_price']}{escape_md(symbol)}\\."
 
     price = format_price(quote.get('price', 0))
     market_cap = format_price(quote.get('market_cap', 0))
@@ -35,20 +34,18 @@ def get_token_info(symbol):
 
     return (
         f"*📊 {escape_md(name)} \\(${escape_md(symbol.upper())}\\)*\n\n"
-        f"💰 *Цена:* `${escape_md(price)}`\n"
-        f"🏦 *Market Cap:* `${escape_md(market_cap)}`\n"
-        f"📈 *FDV:* `${escape_md(fdv)}`\n\n"
-        "*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel](https://t\\.me/devrookies)*"
+        f"{s['price_label']} `${escape_md(price)}`\n"
+        f"{s['mcap_label']} `${escape_md(market_cap)}`\n"
+        f"{s['fdv_label']} `${escape_md(fdv)}`\n\n"
+        f"{s['footer']}"
     )
 
-def convert_currency(amount: float, symbol: str, intent: str = "forward") -> str:
+def convert_currency(amount: float, symbol: str, intent: str = "forward", lang: str = 'EN') -> str:
+    s = STRINGS[lang]
     symbol = symbol.upper()
 
     def get_price(symbol: str, convert_to: str):
-        params = {
-            'symbol': symbol,
-            'convert': convert_to
-        }
+        params = {'symbol': symbol, 'convert': convert_to}
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         data = response.json().get('data', {})
@@ -59,7 +56,7 @@ def convert_currency(amount: float, symbol: str, intent: str = "forward") -> str
         price_usdc = get_price(symbol, 'USDC')
 
         if price_usdt is None or price_usdc is None:
-            return "❌ Токен не найден."
+            return s['token_not_found_short']
 
         if intent == "forward":
             result_usdt = float(amount) * price_usdt
@@ -67,7 +64,7 @@ def convert_currency(amount: float, symbol: str, intent: str = "forward") -> str
             return (
                 f"`{amount}` *${escape_md(symbol)}* *≈* `{escape_md(format_price(result_usdt))}` *$USDT*\n"
                 f"`{amount}` *${escape_md(symbol)}* *≈* `{escape_md(format_price(result_usdc))}` *$USDC*\n\n"
-                "*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel](https://t\\.me/devrookies)*"
+                f"{s['footer']}"
             )
         elif intent == "reverse":
             result_token_usdt = float(amount) / price_usdt
@@ -75,9 +72,9 @@ def convert_currency(amount: float, symbol: str, intent: str = "forward") -> str
             return (
                 f"`{amount}` *$USDT* *≈* `{escape_md(format_price(result_token_usdt))}` *${escape_md(symbol)}*\n"
                 f"`{amount}` *$USDC* *≈* `{escape_md(format_price(result_token_usdc))}` *${escape_md(symbol)}*\n\n"
-                "*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel](https://t\\.me/devrookies)*"
+                f"{s['footer']}"
             )
         else:
-            return "❌ Указано неверное направление конвертации."
+            return s['wrong_direction']
     except Exception:
-        return "⚠️ *Ошибка при получении цены токена*."
+        return s['price_error']
