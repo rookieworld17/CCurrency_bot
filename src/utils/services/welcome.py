@@ -1,3 +1,10 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+_channel_link = os.getenv('CHANNEL_INVITE_LINK') or f"https://t.me/{os.getenv('CHANNEL_USERNAME', '').lstrip('@')}"
+
 def get_welcome_message(lang: str = 'EN') -> str:
     if lang == 'RU':
         return (
@@ -29,8 +36,8 @@ def get_welcome_message(lang: str = 'EN') -> str:
 
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            "👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| "
-            "🌐 [Канал](https://t\\.me/rookie\\_storie)"
+            f"👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| "
+            f"🌐 [Канал]({_channel_link})"
         )
 
     return (
@@ -62,6 +69,6 @@ def get_welcome_message(lang: str = 'EN') -> str:
 
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        "👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| "
-        "🌐 [Channel](https://t\\.me/rookie\\_storie)"
+        f"👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| "
+        f"🌐 [Channel]({_channel_link})"
     )

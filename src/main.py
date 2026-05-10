@@ -7,7 +7,7 @@ from utils.services.database import init_db, add_user, get_language
 from utils.services.users import check_subscribe, get_subscription_keyboard, get_language_keyboard
 from utils.services import users
 from utils.translations import STRINGS
-import os, telebot, time
+import os, telebot, time, threading, math
 
 load_dotenv()
 init_db()
@@ -18,20 +18,52 @@ bot = telebot.TeleBot(telegram_api)
 users.register_callback_handlers(bot)
 
 last_action_time = {}
+cooldown_messages = {}
 ANTI_SPAM_DELAY = 5
 
-def is_spam(user_id):
-    now = time.time()
-    if user_id in last_action_time and now - last_action_time[user_id] < ANTI_SPAM_DELAY:
-        return True
-    last_action_time[user_id] = now
-    return False
+
+def get_cooldown(user_id):
+    last = last_action_time.get(user_id)
+    if last is None:
+        return 0
+    remaining = ANTI_SPAM_DELAY - (time.time() - last)
+    return remaining if remaining > 0 else 0
+
+
+def record_action(user_id):
+    last_action_time[user_id] = time.time()
+
+
+def send_cooldown_message(message, lang, remaining):
+    user_id = message.from_user.id
+    if user_id in cooldown_messages:
+        return
+    secs = math.ceil(remaining)
+    sent = bot.reply_to(message, STRINGS[lang]['cooldown_wait'].format(secs=secs))
+    cooldown_messages[user_id] = True
+
+    def countdown():
+        for s in range(secs - 1, 0, -1):
+            time.sleep(1)
+            try:
+                bot.edit_message_text(
+                    STRINGS[lang]['cooldown_wait'].format(secs=s),
+                    sent.chat.id, sent.message_id
+                )
+            except Exception:
+                pass
+        time.sleep(1)
+        try:
+            bot.edit_message_text(STRINGS[lang]['cooldown_done'], sent.chat.id, sent.message_id)
+        except Exception:
+            pass
+        cooldown_messages.pop(user_id, None)
+
+    threading.Thread(target=countdown, daemon=True).start()
+
 
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
-    if is_spam(message.from_user.id):
-        return
-
     lang = get_language(message.from_user.id)
 
     if not check_subscribe(bot, message.from_user.id):
@@ -43,7 +75,7 @@ def send_welcome(message):
         )
         return
 
-    add_user(message.from_user.id)
+    add_user(message.from_user.id, message.from_user.username)
 
     bot.send_message(
         message.chat.id,
@@ -55,9 +87,6 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    if is_spam(message.from_user.id):
-        return
-
     lang = get_language(message.from_user.id)
 
     if not check_subscribe(bot, message.from_user.id):
@@ -69,10 +98,24 @@ def handle_message(message):
         )
         return
 
-    add_user(message.from_user.id)
+    add_user(message.from_user.id, message.from_user.username)
 
     text = message.text.strip()
     amount, symbol, intent = parce_input(text)
+
+    if intent == 'reverse_invalid':
+        bot.reply_to(message, STRINGS[lang]['invalid_format'], parse_mode='MarkdownV2')
+        return
+
+    if intent == 'info' and (not symbol.isalpha() or len(symbol) > 10):
+        bot.reply_to(message, STRINGS[lang]['invalid_ticker'], parse_mode='MarkdownV2')
+        return
+
+    remaining = get_cooldown(message.from_user.id)
+    if remaining > 0:
+        send_cooldown_message(message, lang, remaining)
+        return
+    record_action(message.from_user.id)
 
     if intent == 'forward':
         try:
@@ -99,9 +142,6 @@ def handle_message(message):
         return
 
     if intent == 'info':
-        if not symbol.isalpha() or len(symbol) > 10:
-            bot.reply_to(message, STRINGS[lang]['invalid_ticker'], parse_mode='MarkdownV2')
-            return
         try:
             bot.reply_to(
                 message,
@@ -111,9 +151,5 @@ def handle_message(message):
             )
         except Exception:
             bot.reply_to(message, STRINGS[lang]['token_not_found'], parse_mode='MarkdownV2')
-
-    if intent == 'reverse_invalid':
-        bot.reply_to(message, STRINGS[lang]['invalid_format'], parse_mode='MarkdownV2')
-        return
 
 bot.polling()

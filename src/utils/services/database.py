@@ -1,4 +1,5 @@
 import sqlite3
+from typing import Optional
 from utils.cfg.config import DB_PATH
 import os
 
@@ -10,12 +11,13 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER UNIQUE NOT NULL
+            user_id INTEGER UNIQUE NOT NULL,
+            language TEXT NOT NULL DEFAULT 'EN'
         )
     ''')
 
     try:
-        cursor.execute("ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT 'EN'")
+        cursor.execute("ALTER TABLE users ADD COLUMN username TEXT")
     except sqlite3.OperationalError:
         pass
 
@@ -24,11 +26,12 @@ def init_db():
 
 # ========== USERS ==========
 
-def add_user(tg_id: int):
+def add_user(tg_id: int, username: Optional[str] = None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
-        cursor.execute('INSERT OR IGNORE INTO users (user_id) VALUES (?)', (tg_id,))
+        cursor.execute('INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)', (tg_id, username))
+        cursor.execute('UPDATE users SET username = ? WHERE user_id = ?', (username, tg_id))
         conn.commit()
     finally:
         conn.close()

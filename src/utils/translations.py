@@ -1,3 +1,10 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+_channel_link = os.getenv('CHANNEL_INVITE_LINK') or f"https://t.me/{os.getenv('CHANNEL_USERNAME', '').lstrip('@')}"
+
 STRINGS = {
     'EN': {
         'subscribe_required': '*To use the bot, please subscribe to the channel* 😉',
@@ -17,8 +24,10 @@ STRINGS = {
         'price_label': '💰 *Price:*',
         'mcap_label': '🏦 *Market Cap:*',
         'fdv_label': '📈 *FDV:*',
-        'footer': '*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel](https://t\\.me/rookie\\_storie)*',
+        'footer': f'*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Channel]({_channel_link})*',
         'lang_btn': '🇷🇺 RU',
+        'cooldown_wait': '⏳ Cooldown: {secs}s',
+        'cooldown_done': '✅ You can now use the bot.',
     },
     'RU': {
         'subscribe_required': '*Для того чтобы пользоваться функционалом бота, необходимо подписаться на канал* 😉',
@@ -38,7 +47,9 @@ STRINGS = {
         'price_label': '💰 *Цена:*',
         'mcap_label': '🏦 *Market Cap:*',
         'fdv_label': '📈 *FDV:*',
-        'footer': '*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Канал](https://t\\.me/rookie\\_storie)*',
+        'footer': f'*👾 [CCurrency\\_bot](https://t\\.me/RookiesCurrency\\_bot) \\| 🌐 [Канал]({_channel_link})*',
         'lang_btn': '🇬🇧 EN',
+        'cooldown_wait': '⏳ Подождите: {secs}с',
+        'cooldown_done': '✅ Теперь вы можете пользоваться ботом.',
     },
 }

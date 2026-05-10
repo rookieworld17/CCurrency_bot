@@ -5,6 +5,7 @@ from utils.translations import STRINGS
 import os
 
 channel_username = os.getenv('CHANNEL_USERNAME')
+channel_invite_lnk = os.getenv('CHANNEL_INVITE_LINK') or f"https://t.me/{channel_username.lstrip('@')}"
 
 def get_subscription_keyboard(lang: str = 'EN') -> types.InlineKeyboardMarkup:
     s = STRINGS[lang]
@@ -12,7 +13,7 @@ def get_subscription_keyboard(lang: str = 'EN') -> types.InlineKeyboardMarkup:
     markup.add(
         types.InlineKeyboardButton(
             s['subscribe_btn'],
-            url=f"https://t.me/{channel_username.lstrip('@')}"
+            url=f"{channel_invite_lnk}"
         )
     )
     markup.add(
@@ -63,7 +64,7 @@ def register_callback_handlers(bot):
     @bot.callback_query_handler(func=lambda call: call.data == "toggle_lang")
     def callback_toggle_language(call):
         user_id = call.from_user.id
-        add_user(user_id)
+        add_user(user_id, call.from_user.username)
         current_lang = get_language(user_id)
         new_lang = 'RU' if current_lang == 'EN' else 'EN'
         set_language(user_id, new_lang)
