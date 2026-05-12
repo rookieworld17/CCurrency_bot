@@ -5,7 +5,7 @@ from utils.services.formatting import parce_input
 from utils.token import convert_currency, get_token_info
 from utils.services.database import init_db, add_user, get_language
 from utils.services.users import check_subscribe, get_subscription_keyboard, get_language_keyboard
-from utils.services import users
+from utils.services import users, suggestions
 from utils.translations import STRINGS
 import os, telebot, time, threading, math
 
@@ -19,7 +19,8 @@ users.register_callback_handlers(bot)
 
 last_action_time = {}
 cooldown_messages = {}
-ANTI_SPAM_DELAY = 5
+ANTI_SPAM_DELAY = int(os.getenv('ANTI_SPAM_DELAY', 5))
+SUGGESTIONS_CHANNEL_ID = int(os.getenv('SUGGESTIONS_CHANNEL_ID', -1003947415284))
 
 
 def get_cooldown(user_id):
@@ -36,15 +37,24 @@ def record_action(user_id):
 
 def send_cooldown_message(message, lang, remaining):
     user_id = message.from_user.id
+
     if user_id in cooldown_messages:
-        return
+        existing = cooldown_messages[user_id]
+        existing['stop'].set()
+        try:
+            bot.delete_message(existing['msg'].chat.id, existing['msg'].message_id)
+        except Exception:
+            pass
+
     secs = math.ceil(remaining)
     sent = bot.reply_to(message, STRINGS[lang]['cooldown_wait'].format(secs=secs))
-    cooldown_messages[user_id] = True
+    stop_event = threading.Event()
+    cooldown_messages[user_id] = {'msg': sent, 'stop': stop_event}
 
     def countdown():
         for s in range(secs - 1, 0, -1):
-            time.sleep(1)
+            if stop_event.wait(1):
+                return
             try:
                 bot.edit_message_text(
                     STRINGS[lang]['cooldown_wait'].format(secs=s),
@@ -52,12 +62,14 @@ def send_cooldown_message(message, lang, remaining):
                 )
             except Exception:
                 pass
-        time.sleep(1)
+        if stop_event.wait(1):
+            return
         try:
             bot.edit_message_text(STRINGS[lang]['cooldown_done'], sent.chat.id, sent.message_id)
         except Exception:
             pass
-        cooldown_messages.pop(user_id, None)
+        if cooldown_messages.get(user_id, {}).get('stop') is stop_event:
+            cooldown_messages.pop(user_id, None)
 
     threading.Thread(target=countdown, daemon=True).start()
 
@@ -99,6 +111,17 @@ def handle_message(message):
         return
 
     add_user(message.from_user.id, message.from_user.username)
+
+    if suggestions.is_pending(message.from_user.id):
+        suggestions.clear_pending(message.from_user.id)
+        suggestions.record_submission(message.from_user.id)
+        identifier = f"@{message.from_user.username}" if message.from_user.username else str(message.from_user.id)
+        try:
+            bot.send_message(SUGGESTIONS_CHANNEL_ID, f"{identifier}\n\n{message.text}")
+        except Exception:
+            pass
+        bot.reply_to(message, STRINGS[lang]['suggest_thanks'], parse_mode='MarkdownV2')
+        return
 
     text = message.text.strip()
     amount, symbol, intent = parce_input(text)
@@ -151,5 +174,15 @@ def handle_message(message):
             )
         except Exception:
             bot.reply_to(message, STRINGS[lang]['token_not_found'], parse_mode='MarkdownV2')
+
+@bot.message_handler(
+    content_types=['photo', 'video', 'audio', 'document', 'voice', 'sticker', 'animation', 'contact', 'location'],
+    func=lambda message: suggestions.is_pending(message.from_user.id)
+)
+def handle_suggestion_non_text(message):
+    lang = get_language(message.from_user.id)
+    suggestions.clear_pending(message.from_user.id)
+    bot.reply_to(message, STRINGS[lang]['suggest_non_text'], parse_mode='MarkdownV2')
+
 
 bot.polling()

@@ -1,8 +1,59 @@
 from telebot import types
 from utils.services.welcome import get_welcome_message
 from utils.services.database import add_user, get_language, set_language
+from utils.services import suggestions
 from utils.translations import STRINGS
-import os
+import os, threading, math, time
+
+_suggest_cooldown_messages: dict = {}
+
+
+def send_suggest_cooldown_message(bot, call, lang, remaining):
+    user_id = call.from_user.id
+
+    if user_id in _suggest_cooldown_messages:
+        existing = _suggest_cooldown_messages[user_id]
+        existing['stop'].set()
+        try:
+            bot.delete_message(existing['msg'].chat.id, existing['msg'].message_id)
+        except Exception:
+            pass
+
+    secs = math.ceil(remaining)
+    sent = bot.send_message(
+        call.message.chat.id,
+        STRINGS[lang]['suggest_cooldown'].format(time=suggestions.format_remaining(secs)),
+        parse_mode='MarkdownV2'
+    )
+    stop_event = threading.Event()
+    _suggest_cooldown_messages[user_id] = {'msg': sent, 'stop': stop_event}
+
+    def countdown():
+        last_text = STRINGS[lang]['suggest_cooldown'].format(time=suggestions.format_remaining(secs))
+        for s in range(secs - 1, 0, -1):
+            if stop_event.wait(1):
+                return
+            new_text = STRINGS[lang]['suggest_cooldown'].format(time=suggestions.format_remaining(s))
+            if new_text != last_text:
+                try:
+                    bot.edit_message_text(new_text, sent.chat.id, sent.message_id, parse_mode='MarkdownV2')
+                    last_text = new_text
+                except Exception:
+                    pass
+        if stop_event.wait(1):
+            return
+        if _suggest_cooldown_messages.get(user_id, {}).get('stop') is stop_event:
+            _suggest_cooldown_messages.pop(user_id, None)
+            try:
+                bot.edit_message_text(
+                    STRINGS[lang]['suggest_cooldown_done'],
+                    sent.chat.id, sent.message_id,
+                    parse_mode='MarkdownV2'
+                )
+            except Exception:
+                pass
+
+    threading.Thread(target=countdown, daemon=True).start()
 
 channel_username = os.getenv('CHANNEL_USERNAME')
 channel_invite_lnk = os.getenv('CHANNEL_INVITE_LINK') or f"https://t.me/{channel_username.lstrip('@')}"
@@ -30,6 +81,12 @@ def get_language_keyboard(lang: str) -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton(
             STRINGS[lang]['lang_btn'],
             callback_data='toggle_lang'
+        )
+    )
+    markup.add(
+        types.InlineKeyboardButton(
+            STRINGS[lang]['suggest_btn'],
+            callback_data='suggest'
         )
     )
     return markup
@@ -75,5 +132,22 @@ def register_callback_handlers(bot):
             parse_mode='MarkdownV2',
             reply_markup=get_language_keyboard(new_lang),
             link_preview_options=types.LinkPreviewOptions(is_disabled=True)
+        )
+        bot.answer_callback_query(call.id)
+
+    @bot.callback_query_handler(func=lambda call: call.data == "suggest")
+    def callback_suggest(call):
+        user_id = call.from_user.id
+        lang = get_language(user_id)
+        remaining = suggestions.get_remaining_cooldown(user_id)
+        if remaining > 0:
+            send_suggest_cooldown_message(bot, call, lang, remaining)
+            bot.answer_callback_query(call.id)
+            return
+        suggestions.set_pending(user_id)
+        bot.send_message(
+            call.message.chat.id,
+            STRINGS[lang]['suggest_prompt'],
+            parse_mode='MarkdownV2'
         )
         bot.answer_callback_query(call.id)
